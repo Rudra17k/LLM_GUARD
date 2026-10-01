@@ -1,0 +1,23 @@
+# Python Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# OS / Editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Environment variables
+.env
+.env.*
+
+# Large model binaries / checkpoints (optional, if you do not want to push 50MB+ weights directly)
+# models/*.joblib

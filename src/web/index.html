@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PID_cys | Hybrid Prompt Injection Firewall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #080B11;
+      --bg-card: rgba(16, 22, 34, 0.75);
+      --bg-card-hover: rgba(22, 30, 48, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(0, 240, 255, 0.3);
+      --text-primary: #F0F4FC;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      
+      --accent-cyan: #00F0FF;
+      --accent-blue: #3B82F6;
+      --accent-safe: #10B981;
+      --accent-safe-glow: rgba(16, 185, 129, 0.25);
+      --accent-warn: #F59E0B;
+      --accent-warn-glow: rgba(245, 158, 11, 0.25);
+      --accent-danger: #EF4444;
+      --accent-danger-glow: rgba(239, 68, 68, 0.35);
+
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(0, 240, 255, 0.06) 0%, transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Glassmorphism utility */
+    .glass-panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    header {
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(8, 11, 17, 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #00F0FF 0%, #3B82F6 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+    }
+
+    .brand-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      background: rgba(0, 240, 255, 0.12);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 6px;
+    }
+
+    .brand-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header-telemetry {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-safe);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-safe);
+      box-shadow: 0 0 10px var(--accent-safe);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+
+    .stat-badge {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .stat-badge span {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    main {
+      flex: 1;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 32px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 28px;
+    }
+
+    @media (max-width: 1024px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left: Playground */
+    .playground-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .presets-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .presets-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .preset-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preset-pill {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .preset-pill:hover {
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--accent-cyan);
+      border-color: rgba(0, 240, 255, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .preset-pill.attack {
+      border-color: rgba(239, 68, 68, 0.25);
+    }
+    .preset-pill.attack:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+      border-color: var(--accent-danger);
+    }
+
+    .textarea-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    textarea {
+      width: 100%;
+      height: 220px;
+      background: rgba(8, 11, 17, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      resize: vertical;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.15);
+    }
+
+    .textarea-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: linear-gradient(135deg, #00F0FF 0%, #3B82F6 100%);
+      color: #040812;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 20px rgba(0, 240, 255, 0.25);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 25px rgba(0, 240, 255, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 13px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.09);
+      color: var(--text-primary);
+    }
+
+    /* Right: Telemetry & Verdict */
+    .verdict-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      justify-content: space-between;
+    }
+
+    .verdict-hero {
+      padding: 28px 20px;
+      border-radius: 14px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .verdict-hero.verdict-allow {
+      background: radial-gradient(circle at center, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.03) 100%);
+      border-color: rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 30px var(--accent-safe-glow);
+    }
+
+    .verdict-hero.verdict-block {
+      background: radial-gradient(circle at center, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.03) 100%);
+      border-color: rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 35px var(--accent-danger-glow);
+    }
+
+    .verdict-hero.verdict-audit {
+      background: radial-gradient(circle at center, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.03) 100%);
+      border-color: rgba(245, 158, 11, 0.4);
+      box-shadow: 0 0 30px var(--accent-warn-glow);
+    }
+
+    .verdict-icon {
+      font-size: 42px;
+    }
+
+    .verdict-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .verdict-allow .verdict-title { color: var(--accent-safe); }
+    .verdict-block .verdict-title { color: var(--accent-danger); }
+    .verdict-audit .verdict-title { color: var(--accent-warn); }
+
+    .verdict-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      max-width: 320px;
+    }
+
+    /* Risk Score Gauge */
+    .gauge-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+    }
+
+    .gauge-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .gauge-label small {
+      display: block;
+      color: var(--text-muted);
+      font-weight: 400;
+      font-size: 11px;
+    }
+
+    .gauge-meter {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      font-family: var(--font-mono);
+    }
+
+    .gauge-value {
+      font-size: 32px;
+      font-weight: 800;
+    }
+
+    .gauge-unit {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* Layer Breakdown Cards */
+    .layers-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .layer-card {
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      transition: border-color 0.2s;
+    }
+
+    .layer-card.active-layer {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 240, 255, 0.04);
+    }
+
+    .layer-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .layer-pill {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-secondary);
+    }
+
+    .layer-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .layer-telemetry {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Audit Table Section */
+    .audit-section {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .audit-table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    th {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-primary);
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: inline-block;
+      font-family: var(--font-mono);
+    }
+
+    .badge-allow {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-safe);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-block {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--accent-danger);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-audit {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--accent-warn);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .mono-cell {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    footer {
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+      margin-top: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🛡️</div>
+      <div class="brand-text">
+        <h1>PID_cys <span class="brand-tag">HYBRID ENGINE v1.0</span></h1>
+        <p>Enterprise Prompt Injection Detection Firewall</p>
+      </div>
+    </div>
+
+    <div class="header-telemetry">
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        FIREWALL ACTIVE
+      </div>
+      <div class="stat-badge">Scanned: <span id="stat-total">0</span></div>
+      <div class="stat-badge">Blocked: <span id="stat-blocked" style="color: var(--accent-danger);">0</span></div>
+      <div class="stat-badge">Avg Latency: <span id="stat-latency">0.00 ms</span></div>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT -->
+  <main>
+    <div class="grid-container">
+      
+      <!-- LEFT: PLAYGROUND -->
+      <section class="glass-panel playground-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span>⚡</span> Prompt Inspection Playground
+          </div>
+          <button class="btn-secondary" id="btn-clear" style="padding: 6px 12px; font-size: 11px;">Clear Prompt</button>
+        </div>
+
+        <div class="presets-container">
+          <span class="presets-label">Click attack presets to benchmark detection:</span>
+          <div class="preset-pills" id="preset-pills-container">
+            <!-- Dynamically populated from /api/v1/presets -->
+          </div>
+        </div>
+
+        <div class="textarea-wrapper">
+          <textarea id="prompt-input" placeholder="Type, paste, or select any prompt above to audit for injection attacks..."></textarea>
+          <div class="textarea-meta">
+            <span id="char-count">0 characters | 0 words</span>
+            <span>Target: Multi-Layered Hybrid Triage</span>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-inspect">
+            <span>Inspect Prompt</span>
+            <span>➔</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- RIGHT: VERDICT & TELEMETRY -->
+      <section class="glass-panel verdict-card">
+        <div class="section-title">
+          <span>📊</span> Decision Telemetry
+        </div>
+
+        <!-- VERDICT HERO -->
+        <div class="verdict-hero verdict-allow" id="verdict-hero">
+          <div class="verdict-icon" id="verdict-icon">🟢</div>
+          <div class="verdict-title" id="verdict-title">READY</div>
+          <div class="verdict-desc" id="verdict-desc">Awaiting input prompt for multi-layered triage inspection.</div>
+        </div>
+
+        <!-- RISK GAUGE -->
+        <div class="gauge-wrapper">
+          <div class="gauge-label">
+            Threat Risk Score
+            <small>Weighted multi-layer index</small>
+          </div>
+          <div class="gauge-meter">
+            <span class="gauge-value" id="gauge-value" style="color: var(--accent-safe);">0.0</span>
+            <span class="gauge-unit">/ 100</span>
+          </div>
+        </div>
+
+        <!-- CASCADED LAYERS STATUS -->
+        <div class="layers-container">
+          <div class="layer-card" id="card-l1">
+            <div class="layer-info">
+              <span class="layer-pill">L1</span>
+              <div>
+                <div class="layer-name">Aho-Corasick & Regex Engine</div>
+                <small style="color: var(--text-muted);">Signature & Delimiter Triage</small>
+              </div>
+            </div>
+            <div class="layer-telemetry" id="telemetry-l1">-- ms</div>
+          </div>
+
+          <div class="layer-card" id="card-l2">
+            <div class="layer-info">
+              <span class="layer-pill">L2</span>
+              <div>
+                <div class="layer-name">Statistical ML Pipeline</div>
+                <small style="color: var(--text-muted);">TF-IDF (20k) + Calibrated Classifier</small>
+              </div>
+            </div>
+            <div class="layer-telemetry" id="telemetry-l2">-- ms</div>
+          </div>
+
+          <div class="layer-card" id="card-l3">
+            <div class="layer-info">
+              <span class="layer-pill">L3</span>
+              <div>
+                <div class="layer-name">Semantic Adversarial Guard</div>
+                <small style="color: var(--text-muted);">Roleplay, Framing & Shannon Entropy</small>
+              </div>
+            </div>
+            <div class="layer-telemetry" id="telemetry-l3">-- ms</div>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- AUDIT LOG TABLE -->
+    <section class="glass-panel audit-section">
+      <div class="section-header">
+        <div class="section-title">
+          <span>📜</span> Real-Time Inspection Log
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-secondary" id="btn-export-log" style="padding: 6px 12px; font-size: 12px;">Export JSON</button>
+          <button class="btn-secondary" id="btn-clear-log" style="padding: 6px 12px; font-size: 12px;">Clear Log</button>
+        </div>
+      </div>
+
+      <div class="audit-table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Verdict</th>
+              <th>Risk</th>
+              <th>Trigger Layer</th>
+              <th>Taxonomy / Attack Family</th>
+              <th>Latency</th>
+              <th>Prompt Snippet</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <!-- Real-time entries appended here -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    PID_cys &copy; 2026. Industrial-Grade Cybersecurity System for Prompt Injection Detection.
+  </footer>
+
+  <!-- SCRIPT -->
+  <script>
+    const promptInput = document.getElementById("prompt-input");
+    const charCount = document.getElementById("char-count");
+    const btnInspect = document.getElementById("btn-inspect");
+    const btnClear = document.getElementById("btn-clear");
+    const presetsContainer = document.getElementById("preset-pills-container");
+
+    const verdictHero = document.getElementById("verdict-hero");
+    const verdictIcon = document.getElementById("verdict-icon");
+    const verdictTitle = document.getElementById("verdict-title");
+    const verdictDesc = document.getElementById("verdict-desc");
+    const gaugeValue = document.getElementById("gauge-value");
+
+    const cardL1 = document.getElementById("card-l1");
+    const cardL2 = document.getElementById("card-l2");
+    const cardL3 = document.getElementById("card-l3");
+    const telemetryL1 = document.getElementById("telemetry-l1");
+    const telemetryL2 = document.getElementById("telemetry-l2");
+    const telemetryL3 = document.getElementById("telemetry-l3");
+
+    const statTotal = document.getElementById("stat-total");
+    const statBlocked = document.getElementById("stat-blocked");
+    const statLatency = document.getElementById("stat-latency");
+    const auditTableBody = document.getElementById("audit-table-body");
+
+    let inspectionHistory = [];
+
+    // Character counter
+    promptInput.addEventListener("input", () => {
+      const text = promptInput.value;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      charCount.textContent = `${text.length} characters | ${words} words`;
+    });
+
+    btnClear.addEventListener("click", () => {
+      promptInput.value = "";
+      charCount.textContent = "0 characters | 0 words";
+      promptInput.focus();
+    });
+
+    // Load Presets
+    async function loadPresets() {
+      try {
+        const res = await fetch("/api/v1/presets");
+        const presets = await res.json();
+        presetsContainer.innerHTML = "";
+        presets.forEach(p => {
+          const pill = document.createElement("button");
+          pill.className = `preset-pill ${p.category === 'benign' ? '' : 'attack'}`;
+          pill.textContent = p.title;
+          pill.addEventListener("click", () => {
+            promptInput.value = p.prompt;
+            const words = p.prompt.trim().split(/\s+/).length;
+            charCount.textContent = `${p.prompt.length} characters | ${words} words`;
+            inspectCurrentPrompt();
+          });
+          presetsContainer.appendChild(pill);
+        });
+      } catch (err) {
+        console.warn("Could not load presets:", err);
+      }
+    }
+
+    // Refresh Server Stats
+    async function refreshStats() {
+      try {
+        const res = await fetch("/api/v1/health");
+        const data = await res.json();
+        if (data && data.stats) {
+          statTotal.textContent = data.stats.total_inspected;
+          statBlocked.textContent = data.stats.total_blocked;
+          statLatency.textContent = `${data.stats.avg_latency_ms.toFixed(2)} ms`;
+        }
+      } catch (err) {}
+    }
+
+    // Inspect Action
+    async function inspectCurrentPrompt() {
+      const text = promptInput.value.trim();
+      if (!text) return;
+
+      btnInspect.disabled = true;
+      btnInspect.innerHTML = "<span>Analyzing...</span>";
+
+      try {
+        const res = await fetch("/api/v1/inspect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text })
+        });
+
+        if (!res.ok) {
+          throw new Error(`API error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        renderResult(data);
+        appendAuditRow(data);
+        refreshStats();
+
+      } catch (err) {
+        alert("Inspection failed: " + err.message);
+      } finally {
+        btnInspect.disabled = false;
+        btnInspect.innerHTML = "<span>Inspect Prompt</span><span>➔</span>";
+      }
+    }
+
+    btnInspect.addEventListener("click", inspectCurrentPrompt);
+
+    // Render result to UI
+    function renderResult(data) {
+      const riskPct = (data.risk_score * 100).toFixed(1);
+      gaugeValue.textContent = riskPct;
+
+      // Reset classes
+      verdictHero.className = "verdict-hero";
+      cardL1.className = "layer-card";
+      cardL2.className = "layer-card";
+      cardL3.className = "layer-card";
+
+      // Color and content mapping
+      if (data.verdict === "BLOCK") {
+        verdictHero.classList.add("verdict-block");
+        verdictIcon.textContent = "🚨";
+        verdictTitle.textContent = "INJECTION DETECTED";
+        verdictDesc.textContent = `Threat classified as ${data.attack_family.toUpperCase()} (${data.injection_type.toUpperCase()}). Input blocked.`;
+        gaugeValue.style.color = "var(--accent-danger)";
+      } else if (data.verdict === "AUDIT") {
+        verdictHero.classList.add("verdict-audit");
+        verdictIcon.textContent = "⚠️";
+        verdictTitle.textContent = "SUSPICIOUS PROMPT";
+        verdictDesc.textContent = "Borderline anomaly detected. Forwarded to secondary sandbox audit.";
+        gaugeValue.style.color = "var(--accent-warn)";
+      } else {
+        verdictHero.classList.add("verdict-allow");
+        verdictIcon.textContent = "🛡️";
+        verdictTitle.textContent = "SAFE / ALLOWED";
+        verdictDesc.textContent = "Zero prompt injection vectors detected. Clean for LLM transmission.";
+        gaugeValue.style.color = "var(--accent-safe)";
+      }
+
+      // Layer Latencies
+      const l1Ms = data.layer_latencies.l1_rules_ms !== undefined ? `${data.layer_latencies.l1_rules_ms.toFixed(3)} ms` : "-- ms";
+      const l2Ms = data.layer_latencies.l2_ml_ms !== undefined ? `${data.layer_latencies.l2_ml_ms.toFixed(3)} ms` : "-- ms";
+      const l3Ms = data.layer_latencies.l3_semantic_ms !== undefined ? `${data.layer_latencies.l3_semantic_ms.toFixed(3)} ms` : "-- ms";
+
+      telemetryL1.textContent = l1Ms;
+      telemetryL2.textContent = l2Ms;
+      telemetryL3.textContent = l3Ms;
+
+      // Active triggering layer highlight
+      if (data.primary_layer === "LAYER_1_RULES") cardL1.classList.add("active-layer");
+      if (data.primary_layer === "LAYER_2_ML") cardL2.classList.add("active-layer");
+      if (data.primary_layer === "LAYER_3_SEMANTIC") cardL3.classList.add("active-layer");
+    }
+
+    // Append to History Log
+    function appendAuditRow(data) {
+      inspectionHistory.unshift(data);
+      const row = document.createElement("tr");
+
+      const timeStr = new Date().toLocaleTimeString();
+      let badgeClass = "badge-allow";
+      if (data.verdict === "BLOCK") badgeClass = "badge-block";
+      if (data.verdict === "AUDIT") badgeClass = "badge-audit";
+
+      row.innerHTML = `
+        <td class="mono-cell">${timeStr}</td>
+        <td><span class="badge ${badgeClass}">${data.verdict}</span></td>
+        <td class="mono-cell" style="font-weight: 700;">${(data.risk_score * 100).toFixed(0)}%</td>
+        <td class="mono-cell">${data.primary_layer}</td>
+        <td><span style="text-transform: capitalize;">${data.attack_family.replace(/_/g, ' ')}</span></td>
+        <td class="mono-cell">${data.total_latency_ms.toFixed(2)} ms</td>
+        <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${data.prompt_snippet}</td>
+      `;
+
+      auditTableBody.prepend(row);
+    }
+
+    // Export & Clear Log
+    document.getElementById("btn-clear-log").addEventListener("click", () => {
+      auditTableBody.innerHTML = "";
+      inspectionHistory = [];
+    });
+
+    document.getElementById("btn-export-log").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(inspectionHistory, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pid_cys_audit_${Date.now()}.json`;
+      a.click();
+    });
+
+    // Init
+    loadPresets();
+    refreshStats();
+  </script>
+</body>
+</html>
