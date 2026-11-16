@@ -35,3 +35,10 @@ htmlcov/
 *.pem
 *.key
 
+# Personal audit reports, working papers, and generated documents
+audit/
+reports/
+*.docx
+*.pdf
+
+
