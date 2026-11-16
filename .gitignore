@@ -1,23 +1,37 @@
-# Python Virtual Environment
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
 .venv/
 venv/
 ENV/
 env/
 
-# Bytecode & Caches
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-
-# OS / Editor files
+# Operating system files
 .DS_Store
-.vscode/
-.idea/
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Environment variables
+# Testing and coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs & Databases
+*.log
+*.db
+*.db-wal
+*.db-shm
+
+# Environment variables & secrets
 .env
 .env.*
+*.pem
+*.key
 
-# Large model binaries / checkpoints (optional, if you do not want to push 50MB+ weights directly)
-# models/*.joblib

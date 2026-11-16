@@ -6,7 +6,10 @@
   <title>PID_cys | Hybrid Prompt Injection Firewall</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+  </noscript>
   <style>
     :root {
       --bg-dark: #080B11;
@@ -27,8 +30,8 @@
       --accent-danger: #EF4444;
       --accent-danger-glow: rgba(239, 68, 68, 0.35);
 
-      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     }
 
     * {
@@ -602,6 +605,10 @@
       <div class="stat-badge">Scanned: <span id="stat-total">0</span></div>
       <div class="stat-badge">Blocked: <span id="stat-blocked" style="color: var(--accent-danger);">0</span></div>
       <div class="stat-badge">Avg Latency: <span id="stat-latency">0.00 ms</span></div>
+      <div class="api-key-box" style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:20px; padding:3px 10px;">
+        <span style="font-size:11px; color:var(--text-muted);">API Key:</span>
+        <input type="password" id="api-key-input" placeholder="Optional key" style="background:transparent; border:none; outline:none; color:var(--text-main); font-family:var(--font-mono); font-size:11px; width:100px;">
+      </div>
     </div>
   </header>
 
@@ -652,6 +659,9 @@
           <div class="verdict-icon" id="verdict-icon">🟢</div>
           <div class="verdict-title" id="verdict-title">READY</div>
           <div class="verdict-desc" id="verdict-desc">Awaiting input prompt for multi-layered triage inspection.</div>
+          <div class="verdict-disclaimer" id="verdict-disclaimer" style="display:none; font-size:11px; line-height:1.4; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.08); padding-top:8px; margin-top:4px;">
+            ⚠️ <strong>Disclaimer:</strong> Prompt injection firewall only. Content safety, toxicity, and malicious intent are not evaluated.
+          </div>
         </div>
 
         <!-- RISK GAUGE -->
@@ -756,6 +766,7 @@
     const verdictIcon = document.getElementById("verdict-icon");
     const verdictTitle = document.getElementById("verdict-title");
     const verdictDesc = document.getElementById("verdict-desc");
+    const verdictDisclaimer = document.getElementById("verdict-disclaimer");
     const gaugeValue = document.getElementById("gauge-value");
 
     const cardL1 = document.getElementById("card-l1");
@@ -821,6 +832,24 @@
       } catch (err) {}
     }
 
+    // API Key Storage & Headers
+    const apiKeyInput = document.getElementById("api-key-input");
+    if (apiKeyInput) {
+      apiKeyInput.value = localStorage.getItem("pid_api_key") || "";
+      apiKeyInput.addEventListener("input", (e) => {
+        localStorage.setItem("pid_api_key", e.target.value.trim());
+      });
+    }
+
+    function getAuthHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      const key = (apiKeyInput && apiKeyInput.value.trim()) || localStorage.getItem("pid_api_key");
+      if (key) {
+        headers["X-PID-API-Key"] = key;
+      }
+      return headers;
+    }
+
     // Inspect Action
     async function inspectCurrentPrompt() {
       const text = promptInput.value.trim();
@@ -832,9 +861,13 @@
       try {
         const res = await fetch("/api/v1/inspect", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ prompt: text })
         });
+
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(`Authentication required (${res.status}). Please enter a valid API key in the top bar.`);
+        }
 
         if (!res.ok) {
           throw new Error(`API error: ${res.status}`);
@@ -872,18 +905,21 @@
         verdictIcon.textContent = "🚨";
         verdictTitle.textContent = "INJECTION DETECTED";
         verdictDesc.textContent = `Threat classified as ${data.attack_family.toUpperCase()} (${data.injection_type.toUpperCase()}). Input blocked.`;
+        if (verdictDisclaimer) verdictDisclaimer.style.display = "none";
         gaugeValue.style.color = "var(--accent-danger)";
       } else if (data.verdict === "AUDIT") {
         verdictHero.classList.add("verdict-audit");
         verdictIcon.textContent = "⚠️";
         verdictTitle.textContent = "SUSPICIOUS PROMPT";
         verdictDesc.textContent = "Borderline anomaly detected. Forwarded to secondary sandbox audit.";
+        if (verdictDisclaimer) verdictDisclaimer.style.display = "none";
         gaugeValue.style.color = "var(--accent-warn)";
       } else {
         verdictHero.classList.add("verdict-allow");
         verdictIcon.textContent = "🛡️";
-        verdictTitle.textContent = "SAFE / ALLOWED";
+        verdictTitle.textContent = "ALLOW — NO PROMPT INJECTION DETECTED";
         verdictDesc.textContent = "Zero prompt injection vectors detected. Clean for LLM transmission.";
+        if (verdictDisclaimer) verdictDisclaimer.style.display = "block";
         gaugeValue.style.color = "var(--accent-safe)";
       }
 
@@ -907,7 +943,7 @@
       inspectionHistory.unshift(data);
       const row = document.createElement("tr");
 
-      const timeStr = new Date().toLocaleTimeString();
+      const timeStr = data.timestamp ? new Date(data.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
       let badgeClass = "badge-allow";
       if (data.verdict === "BLOCK") badgeClass = "badge-block";
       if (data.verdict === "AUDIT") badgeClass = "badge-audit";
@@ -917,12 +953,33 @@
         <td><span class="badge ${badgeClass}">${data.verdict}</span></td>
         <td class="mono-cell" style="font-weight: 700;">${(data.risk_score * 100).toFixed(0)}%</td>
         <td class="mono-cell">${data.primary_layer}</td>
-        <td><span style="text-transform: capitalize;">${data.attack_family.replace(/_/g, ' ')}</span></td>
+        <td><span style="text-transform: capitalize;">${String(data.attack_family || '').replace(/_/g, ' ')}</span></td>
         <td class="mono-cell">${data.total_latency_ms.toFixed(2)} ms</td>
-        <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${data.prompt_snippet}</td>
       `;
 
+      const snippetCell = document.createElement("td");
+      snippetCell.style.cssText = "max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
+      snippetCell.textContent = data.prompt_snippet || "";
+      row.appendChild(snippetCell);
+
       auditTableBody.prepend(row);
+    }
+
+    // Load persistent audit history from SQLite (MCR-17)
+    async function loadHistory() {
+      try {
+        const res = await fetch("/api/v1/history?limit=50", {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const items = await res.json();
+          for (let i = items.length - 1; i >= 0; i--) {
+            appendAuditRow(items[i]);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load persistent audit history:", err);
+      }
     }
 
     // Export & Clear Log
@@ -943,6 +1000,7 @@
     // Init
     loadPresets();
     refreshStats();
+    loadHistory();
   </script>
 </body>
 </html>

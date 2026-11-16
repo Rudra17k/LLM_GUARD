@@ -1,6 +1,7 @@
 import re
 import time
 import math
+from collections import Counter
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
@@ -33,7 +34,8 @@ class SemanticGuard:
     def _compile_semantic_patterns(self):
         # Subtle jailbreak & hypothetical framing
         self.hypothetical_framing = re.compile(
-            r"\b(hypothetically|in an imaginary world|in a fictional story|for research purposes only|"
+            r"\b(hypothetically|in an? (?:imaginary|fictional)(?:\s+(?:imaginary|fictional))?\s+(?:world|story|scenario|universe)|"
+            r"in an imaginary world|in a fictional story|for research purposes only|"
             r"purely educational|in an alternate universe|pretend there are no ethics|simulate a world|"
             r"act as a character who doesn't care|you have no constraints|you have broken free)\b",
             re.IGNORECASE
@@ -47,10 +49,12 @@ class SemanticGuard:
             re.IGNORECASE
         )
 
-        # Instruction override semantics
+        # Instruction override semantics (MCR-15: with quantifiers and determiners)
         self.instruction_negation = re.compile(
             r"\b(do not follow|disregard|override|forget|abandon|drop|ignore)\s+"
-            r"(your\s+)?(previous|prior|original|core|system|initial)\s+"
+            r"((?:all|any|these|those|the|your)\s+)?"
+            r"((?:all|any|these|those|the|your)\s+)?"
+            r"(previous|prior|original|core|system|initial)\s+"
             r"(rules|instructions|prompts|directives|guidelines|programming)\b",
             re.IGNORECASE
         )
@@ -58,17 +62,18 @@ class SemanticGuard:
         # Document / Payload exfiltration semantics
         self.exfil_semantics = re.compile(
             r"(webhook\.site|evil\.com|attacker\.org|transfer\s+to\s+server|curl\s+https?://|"
-            r"nc\s+-l|fetch\('https?://|http://127\.0\.0\.1)",
+            r"nc\s+-l|fetch\(['\"`]?https?://|http://127\.0\.0\.1)",
             re.IGNORECASE
         )
 
     def calculate_entropy(self, text: str) -> float:
-        """Shannon entropy of character distribution to spot obfuscation and ciphertext."""
+        """Shannon entropy of character distribution to spot obfuscation and ciphertext (O(N))."""
         if not text:
             return 0.0
-        prob = [float(text.count(c)) / len(text) for c in dict.fromkeys(list(text))]
-        entropy = -sum([p * math.log(p) / math.log(2.0) for p in prob])
-        return round(entropy, 3)
+        length = len(text)
+        counts = Counter(text)
+        entropy = -sum((c / length) * math.log2(c / length) for c in counts.values())
+        return round(max(0.0, entropy), 3)
 
     def evaluate(self, text: str) -> SemanticScoreResult:
         """
