@@ -21,6 +21,8 @@ def main():
     if args.json:
         import json
         print(json.dumps(result.to_dict(), indent=2))
+        if result.verdict == "BLOCK":
+            sys.exit(1)
         return
 
     print("=" * 60)
@@ -43,6 +45,9 @@ def main():
     print("-" * 60)
     print(f"Layer Latencies: {result.layer_latencies}")
     print("=" * 60)
+
+    if result.verdict == "BLOCK":
+        sys.exit(1)
 
 
 if __name__ == "__main__":

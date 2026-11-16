@@ -64,6 +64,7 @@ class RuleTriageEngine:
             ("jailbroken mode", AttackFamily.ROLEPLAY_AUTHORITY, InjectionType.DIRECT, 0.98),
             ("act as evilbot", AttackFamily.ROLEPLAY_AUTHORITY, InjectionType.DIRECT, 0.99),
             ("without any safety guidelines or filters", AttackFamily.ROLEPLAY_AUTHORITY, InjectionType.DIRECT, 0.98),
+            ("no safety filters", AttackFamily.ROLEPLAY_AUTHORITY, InjectionType.DIRECT, 0.98),
             ("answer without censorship", AttackFamily.ROLEPLAY_AUTHORITY, InjectionType.DIRECT, 0.95),
 
             # Obfuscation & Shell Execution

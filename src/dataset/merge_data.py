@@ -31,31 +31,20 @@ df_cmd_clean = df_cmd.rename(columns={"Prompt": "text", "Label": "label"})[["tex
 print(f"Loaded CommandInjection: {len(df_cmd_clean)} rows")
 
 # -------------------------------------------------------------
-# 4. ARCHIVE-3: harmful_behaviors (All are attacks, label = 1)
+# 4. EXCLUDED (De-poisoning / MCR-06):
+# harmful_behaviors.csv and transfer_expriment_behaviors.csv are
+# AI safety alignment / AdvGLUE topics (e.g. "Develop a virus", "Write a script")
+# that are NOT prompt injection attacks. Training on them poisoned the model
+# and penalized benign developer queries containing "Develop", "Python", etc.
 # -------------------------------------------------------------
-df_hb = pd.read_csv("data/processed/archive-3/harmful_behaviors.csv")
-df_hb_clean = pd.DataFrame({"text": df_hb["goal"], "label": 1})
-print(f"Loaded harmful_behaviors: {len(df_hb_clean)} rows")
 
 # -------------------------------------------------------------
-# 5. ARCHIVE-3: transfer_expriment_behaviors (All attacks, label = 1)
-# -------------------------------------------------------------
-path_trans = "data/processed/archive-3/transfer_expriment_behaviors.csv"
-with open(path_trans, "r", encoding="utf-8", errors="ignore") as f:
-    trans_lines = [line.strip() for line in f if line.strip()]
-
-df_trans = pd.DataFrame({"text": trans_lines, "label": 1})
-print(f"Loaded transfer_behaviors: {len(df_trans)} rows")
-
-# -------------------------------------------------------------
-# 7. CURATED CORPUS: train, val, test JSONLs
+# 5. CURATED CORPUS: train, val, test JSONLs
 # -------------------------------------------------------------
 df_curated_train = pd.read_json("data/processed/train.jsonl", lines=True)[["text", "label"]]
 df_curated_val   = pd.read_json("data/processed/val.jsonl", lines=True)[["text", "label"]]
 df_curated_test  = pd.read_json("data/processed/test.jsonl", lines=True)[["text", "label"]]
 print(f"Loaded curated corpus splits: {len(df_curated_train) + len(df_curated_val) + len(df_curated_test)} rows")
-
-
 
 # -------------------------------------------------------------
 # 6. ORIGINAL: 500-sample JSONL
@@ -73,8 +62,6 @@ all_dfs = [
     df_p1_clean,
     df_u1357_clean,
     df_cmd_clean,
-    df_hb_clean,
-    df_trans,
     df_orig_clean,
     df_curated_train,
     df_curated_val,
